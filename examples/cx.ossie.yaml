@@ -1,0 +1,127 @@
+version: '0.1.1'
+semantic_model:
+  - name: cx_pilot
+    description: Sample customer experience model; data and fiscal periods are illustrative.
+    custom_extensions:
+      - vendor_name: COMMON
+        data: >-
+          {"cx_mcp":{"time_spine":{"column":"date_day","bindings":{"snowflake":"CX_GOLD.PUBLIC.DATE_SPINE","teradata":"CX_GOLD.DATE_SPINE"}},"calendar":{"timezone":"Asia/Kolkata","periods":[
+          {"name":"2026-P08","start":"2026-07-27","end":"2026-08-30"},
+          {"name":"2026-P09","start":"2026-08-31","end":"2026-09-27"},
+          {"name":"2026-P10","start":"2026-09-28","end":"2026-10-25"},
+          {"name":"2026-P11","start":"2026-10-26","end":"2026-11-29"},
+          {"name":"2026-P12","start":"2026-11-30","end":"2026-12-27"}]}}}
+    datasets:
+      - name: interactions
+        source: CX_GOLD.PUBLIC.INTERACTIONS
+        primary_key: [interaction_id]
+        custom_extensions:
+          - vendor_name: COMMON
+            data: >-
+              {"cx_mcp":{"time_dimension":"interaction_date","preferred_warehouse":"snowflake",
+              "bindings":{"snowflake":"CX_GOLD.PUBLIC.INTERACTIONS","teradata":"CX_GOLD.INTERACTIONS"}}}
+        fields:
+          - name: interaction_id
+            datatype: Integer
+            expression: {dialects: [{dialect: ANSI_SQL, expression: interaction_id}]}
+          - name: interaction_date
+            label: Interaction Date
+            datatype: Date
+            dimension: {is_time: true}
+            expression: {dialects: [{dialect: ANSI_SQL, expression: interaction_date}]}
+            custom_extensions:
+              - vendor_name: COMMON
+                data: '{"cx_mcp":{"synonyms":["date","day"],"exposed":true}}'
+          - name: interaction_medium
+            label: Interaction Medium
+            datatype: String
+            dimension: {is_time: false}
+            expression: {dialects: [{dialect: ANSI_SQL, expression: interaction_medium}]}
+            custom_extensions:
+              - vendor_name: COMMON
+                data: '{"cx_mcp":{"synonyms":["channel","medium"],"allowed_values":["Call","Chat","Email"],"exposed":true}}'
+          - name: queue_type
+            label: Queue Type
+            datatype: String
+            expression: {dialects: [{dialect: ANSI_SQL, expression: queue_type}]}
+            custom_extensions:
+              - vendor_name: COMMON
+                data: '{"cx_mcp":{"allowed_values":["LIVE","TEST"],"exposed":true}}'
+          - name: fiscal_month
+            label: Fiscal Month
+            datatype: String
+            expression: {dialects: [{dialect: ANSI_SQL, expression: fiscal_month}]}
+            custom_extensions:
+              - vendor_name: COMMON
+                data: '{"cx_mcp":{"synonyms":["fiscal period"],"exposed":true}}'
+          - name: hold_seconds
+            datatype: Decimal
+            expression: {dialects: [{dialect: ANSI_SQL, expression: hold_seconds}]}
+          - name: handle_seconds
+            datatype: Decimal
+            expression: {dialects: [{dialect: ANSI_SQL, expression: handle_seconds}]}
+          - name: talk_seconds
+            datatype: Decimal
+            expression: {dialects: [{dialect: ANSI_SQL, expression: talk_seconds}]}
+          - name: resolved_1d
+            datatype: Integer
+            expression: {dialects: [{dialect: ANSI_SQL, expression: resolved_1d}]}
+          - name: resolved_7d
+            datatype: Integer
+            expression: {dialects: [{dialect: ANSI_SQL, expression: resolved_7d}]}
+    metrics:
+      - name: calls_count
+        description: Number of qualifying interactions, excluding test queues.
+        datatype: Integer
+        expression: {dialects: [{dialect: ANSI_SQL, expression: 'COUNT(interactions.interaction_id)'}]}
+        custom_extensions:
+          - vendor_name: COMMON
+            data: >-
+              {"cx_mcp":{"label":"Interaction Count","synonyms":["interaction volume","total interactions","calls count"],
+              "owner":"cx-ops-analytics","additivity":"additive","unit":"count",
+              "intrinsic_filters":[{"dimension":"queue_type","operator":"ne","values":["TEST"]}]}}
+      - name: hold_pct_handle_time
+        description: Sum of hold seconds divided by sum of handle seconds. Zero denominator returns null.
+        datatype: Decimal
+        expression: {dialects: [{dialect: ANSI_SQL, expression: 'SUM(interactions.hold_seconds) / SUM(interactions.handle_seconds)'}]}
+        custom_extensions:
+          - vendor_name: COMMON
+            data: >-
+              {"cx_mcp":{"label":"Hold % of Handle Time","synonyms":["hold percentage","hold %"],
+              "owner":"cx-ops-analytics","additivity":"non_additive","unit":"percent",
+              "variant_group":"hold_pct","is_default":true,"explicit_terms":["handle time","hold_pct_handle_time"],
+              "intrinsic_filters":[{"dimension":"queue_type","operator":"ne","values":["TEST"]}],
+              "caveats":[{"text":"Sample data only; not a business report.","expires":"2027-03-31"}]}}
+      - name: hold_pct_talk_time
+        description: Sum of hold seconds divided by sum of talk seconds.
+        datatype: Decimal
+        expression: {dialects: [{dialect: ANSI_SQL, expression: 'SUM(interactions.hold_seconds) / SUM(interactions.talk_seconds)'}]}
+        custom_extensions:
+          - vendor_name: COMMON
+            data: >-
+              {"cx_mcp":{"label":"Hold % of Talk Time","synonyms":["hold percentage","hold %"],
+              "owner":"cx-ops-analytics","additivity":"non_additive","unit":"percent",
+              "variant_group":"hold_pct","is_default":false,"explicit_terms":["talk time","hold_pct_talk_time"],
+              "intrinsic_filters":[{"dimension":"queue_type","operator":"ne","values":["TEST"]}]}}
+      - name: resolution_rate_1d
+        description: Qualifying interactions resolved within one day, divided by interaction count.
+        datatype: Decimal
+        expression: {dialects: [{dialect: ANSI_SQL, expression: 'SUM(interactions.resolved_1d) / COUNT(interactions.interaction_id)'}]}
+        custom_extensions:
+          - vendor_name: COMMON
+            data: >-
+              {"cx_mcp":{"label":"One Day Resolution Rate","synonyms":["resolution rate"],
+              "owner":"cx-ops-analytics","additivity":"non_additive","unit":"percent",
+              "variant_group":"resolution_rate","explicit_terms":["one day","1 day","resolution_rate_1d"],
+              "intrinsic_filters":[{"dimension":"queue_type","operator":"ne","values":["TEST"]}]}}
+      - name: resolution_rate_7d
+        description: Qualifying interactions resolved within seven days, divided by interaction count.
+        datatype: Decimal
+        expression: {dialects: [{dialect: ANSI_SQL, expression: 'SUM(interactions.resolved_7d) / COUNT(interactions.interaction_id)'}]}
+        custom_extensions:
+          - vendor_name: COMMON
+            data: >-
+              {"cx_mcp":{"label":"Seven Day Resolution Rate","synonyms":["resolution rate"],
+              "owner":"cx-ops-analytics","additivity":"non_additive","unit":"percent",
+              "variant_group":"resolution_rate","explicit_terms":["seven days","7 days","resolution_rate_7d"],
+              "intrinsic_filters":[{"dimension":"queue_type","operator":"ne","values":["TEST"]}]}}

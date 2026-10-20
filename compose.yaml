@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: semantic_mcp
+      POSTGRES_USER: semantic_mcp
+      POSTGRES_PASSWORD: local-development-only
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U semantic_mcp"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_ENV: demo
+      EXECUTION_MODE: demo
+      RESOLVER_MODE: fixture
+      DATABASE_URL: postgresql+psycopg://semantic_mcp:local-development-only@postgres:5432/semantic_mcp
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:
