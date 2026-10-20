@@ -9,6 +9,8 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import ErrorLevel
 
+from semantic_mcp.contracts import QueryExecutionError
+
 
 @dataclass
 class ExecutionResult:
@@ -49,7 +51,10 @@ class DemoExecutor:
         import duckdb
 
         if not self.path.exists():
-            raise RuntimeError("Demo data is missing. Run python scripts/seed_demo.py first.")
+            raise QueryExecutionError(
+                "demo_data_missing",
+                "Local sample data is missing. Stop the server, run python scripts/seed_demo.py from the repository root, then restart.",
+            )
         tree = sqlglot.parse_one(query.sql, read=query.warehouse)
         # Explicit demo bindings only. DuckDB never pretends to be a live warehouse.
         for table in tree.find_all(exp.Table):

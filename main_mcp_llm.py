@@ -26,6 +26,18 @@ def create_app(settings: Settings | None = None):
         settings.llm_model,
         settings.llm_send_temperature,
     )
+    if not settings.demo_database_path.exists():
+        reference_model = Path(__file__).resolve().parent / "examples" / "cx.ossie.yaml"
+        if settings.model_path.resolve() != reference_model:
+            raise RuntimeError(
+                "The custom model requires its own local demo database; prepare it before startup"
+            )
+        from scripts.seed_demo import seed
+
+        seed(settings.demo_database_path)
+        logging.getLogger(__name__).warning(
+            "Created missing synthetic demo warehouse: %s", settings.demo_database_path.resolve()
+        )
     app = FastAPI(title="Standalone MCP LLM test")
     questions = list(json.loads(Path("examples/questions.json").read_text(encoding="utf-8")))
     install_demo_ui(app, questions, resolver_mode="llm")

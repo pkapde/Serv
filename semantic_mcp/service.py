@@ -6,7 +6,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from semantic_mcp.compiler import Compiler
-from semantic_mcp.contracts import CannotAnswer, Column, QueryResponse, QuerySpec
+from semantic_mcp.contracts import CannotAnswer, Column, QueryExecutionError, QueryResponse, QuerySpec
 from semantic_mcp.model import SemanticModel
 from semantic_mcp.resolver import Resolver
 from semantic_mcp.store import Store, new_id, timestamp
@@ -78,6 +78,12 @@ class QueryService:
                 message=str(exc),
                 candidates=exc.candidates,
             )
+        except QueryExecutionError as exc:
+            audit["error_type"] = type(exc).__name__
+            logger.warning("Request %s failed (%s)", request_id, exc.reason_code)
+            response = QueryResponse(
+                status="error", request_id=request_id, reason_code=exc.reason_code, message=str(exc)
+            )
         except Exception as exc:
             logger.warning("Request %s failed (%s)", request_id, type(exc).__name__)
             audit["error_type"] = type(exc).__name__
@@ -112,6 +118,12 @@ class QueryService:
                 reason_code=exc.reason_code,
                 message=str(exc),
                 candidates=exc.candidates,
+            )
+        except QueryExecutionError as exc:
+            audit["error_type"] = type(exc).__name__
+            logger.warning("Saved query %s failed (%s)", request_id, exc.reason_code)
+            response = QueryResponse(
+                status="error", request_id=request_id, reason_code=exc.reason_code, message=str(exc)
             )
         except Exception as exc:
             logger.warning("Saved query %s failed (%s)", request_id, type(exc).__name__)
@@ -173,7 +185,10 @@ class QueryService:
             self.semaphore.release()
         # Use column identities rather than trusting warehouse ordering.
         if set(result.names) != set(compiled.compiler_names):
-            raise RuntimeError("Warehouse output does not match the compiled response schema")
+            raise QueryExecutionError(
+                "result_schema_mismatch",
+                "The executed query returned different column names than the compiled specification. Check the local model/compiler compatibility using the request ID.",
+            )
         indices = [result.names.index(name) for name in compiled.compiler_names]
         rows = [[row[i] for i in indices] for row in result.rows]
         columns = [

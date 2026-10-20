@@ -73,6 +73,13 @@ python scripts/seed_demo.py
 python -m uvicorn main_mcp_demo:app --host 127.0.0.1 --port 8000
 ```
 
+The standalone LLM launcher now creates a missing DuckDB file automatically for
+the bundled reference model. Existing databases are never reseeded at startup.
+Custom models require their own prepared data. Missing-data and result-column
+mismatch failures return distinct actionable reason codes instead of a generic
+RuntimeError message. If data exists but is invalid, stop the server and deliberately
+run the seed script only when that local synthetic file can be reset.
+
 The tokenizer preparation can download vocabulary on its first run. Seed only
 the local synthetic database: seed_demo.py deletes and recreates its sample rows.
 Run it before starting the server, not while queries are using the file.

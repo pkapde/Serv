@@ -101,6 +101,14 @@ class QueryResponse(StrictModel):
     candidates: list[str] = Field(default_factory=list)
 
 
+class QueryExecutionError(RuntimeError):
+    """An execution failure with an explicitly safe public explanation."""
+
+    def __init__(self, reason_code: str, message: str):
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
 class CannotAnswer(Exception):
     def __init__(self, reason_code: str, message: str, candidates: list[str] | None = None):
         super().__init__(message)
