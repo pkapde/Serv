@@ -295,6 +295,36 @@ Docker COPY, tokenizer preparation, file permissions and dependency installation
 
 ## 10. Configuration modes
 
+### Azure OpenAI key authentication
+
+The Serv test repository supports Azure resource-root deployment URLs and Azure
+v1 base URLs. Set the deployment name, not a generic model family, in MCP_LLM_MODEL.
+Fill credentials locally; no working credentials are checked in.
+
+Resource-root configuration:
+
+```dotenv
+MCP_LLM_PROVIDER=azure_openai
+MCP_LLM_BASE_URL=https://YOUR-RESOURCE.openai.azure.com
+MCP_LLM_MODEL=YOUR-DEPLOYMENT
+MCP_LLM_API_KEY=YOUR-PRIVATE-KEY
+MCP_LLM_API_VERSION=YOUR-APPROVED-API-VERSION
+```
+
+The resolver builds /openai/deployments/{deployment}/chat/completions with an
+api-version query parameter and an api-key header. Do not paste a full completion
+URL into the base setting.
+
+For the v1 API, use MCP_LLM_BASE_URL=https://YOUR-RESOURCE.openai.azure.com/openai/v1
+with MCP_LLM_PROVIDER=azure_openai and leave MCP_LLM_API_VERSION empty. The
+resolver calls /openai/v1/chat/completions with api-key authentication.
+
+Both modes require a deployment supporting strict structured outputs and the
+current temperature-zero request. Unsupported model parameters are not silently
+removed. Entra token acquisition and custom API-management headers are not implemented.
+Azure routing is tested with simulated responses, not a real Azure deployment.
+Reference: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs
+
 The integrated installer reads MCP_-prefixed settings from .env and environment.
 The standalone service reads the same field names without the prefix.
 
@@ -328,7 +358,8 @@ MCP_LLM_MODEL=your-model
 ```
 
 The current resolver requires /chat/completions and strict JSON-schema output.
-Direct Anthropic and differently shaped Azure endpoints require an adapter.
+Direct Anthropic and custom gateway endpoints require an adapter. For Azure use
+the explicit azure_openai provider configuration above.
 The full catalogue is sent on an uncached resolution, with temperature zero.
 Malformed output gets one retry; this is not an LLM SQL-repair loop.
 

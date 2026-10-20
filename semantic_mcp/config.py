@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,8 @@ class Settings(BaseSettings):
     model_context_fraction: float = Field(default=0.5, gt=0, le=1)
     llm_context_window: int = Field(default=128000, ge=1024)
     llm_base_url: str = ""
+    llm_provider: Literal["openai_compatible", "azure_openai"] = "openai_compatible"
+    llm_api_version: str = ""
     llm_api_key: str = ""
     llm_model: str = ""
     llm_timeout_seconds: int = Field(default=30, ge=1, le=120)
@@ -45,6 +48,19 @@ class Settings(BaseSettings):
             raise ValueError("API_TOKENS must contain nonempty token-to-caller mappings")
         if self.resolver_mode == "llm" and not all((self.llm_base_url, self.llm_api_key, self.llm_model)):
             raise ValueError("LLM mode requires LLM_BASE_URL, LLM_API_KEY and LLM_MODEL")
+        if self.resolver_mode == "llm" and self.llm_provider == "azure_openai":
+            endpoint = urlsplit(self.llm_base_url)
+            if (
+                endpoint.scheme not in ("https", "http")
+                or not endpoint.netloc
+                or endpoint.query
+                or endpoint.fragment
+            ):
+                raise ValueError("Azure LLM_BASE_URL must be an HTTP(S) base URL without query or fragment")
+            if endpoint.path.rstrip("/") not in ("", "/openai/v1"):
+                raise ValueError("Azure base URL must be the resource root or end with /openai/v1")
+            if not endpoint.path.rstrip("/") and not self.llm_api_version:
+                raise ValueError("Azure resource-root endpoints require LLM_API_VERSION")
         if self.app_env == "production":
             if self.resolver_mode != "llm" or self.execution_mode != "live":
                 raise ValueError("Production requires a real resolver and live execution")

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 import tiktoken
@@ -77,6 +78,8 @@ class Resolver:
             self.settings.resolver_mode,
             self.settings.llm_model,
             self.settings.llm_base_url,
+            self.settings.llm_provider,
+            self.settings.llm_api_version,
             normalize_question(question),
         ]
         return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
@@ -107,12 +110,25 @@ class Resolver:
                 "json_schema": {"name": "query_resolution", "strict": True, "schema": strict_output_schema()},
             },
         }
+        url = self.settings.llm_base_url.rstrip("/") + "/chat/completions"
+        headers = {"Authorization": "Bearer " + self.settings.llm_api_key}
+        params = None
+        if self.settings.llm_provider == "azure_openai":
+            headers = {"api-key": self.settings.llm_api_key}
+            if not self.settings.llm_base_url.rstrip("/").endswith("/openai/v1"):
+                deployment = quote(self.settings.llm_model, safe="")
+                url = (
+                    self.settings.llm_base_url.rstrip("/")
+                    + f"/openai/deployments/{deployment}/chat/completions"
+                )
+                params = {"api-version": self.settings.llm_api_version}
         # Stable catalogue prefix supports provider-side prompt caching where implemented.
         for attempt in range(2):
             audit["llm_calls"] += 1
             response = await self.client.post(
-                self.settings.llm_base_url.rstrip("/") + "/chat/completions",
-                headers={"Authorization": "Bearer " + self.settings.llm_api_key},
+                url,
+                headers=headers,
+                params=params,
                 json=body,
             )
             response.raise_for_status()
