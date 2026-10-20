@@ -1,9 +1,13 @@
+import logging
+import re
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -49,11 +53,31 @@ class Settings(BaseSettings):
             raise ValueError("API_TOKENS must contain nonempty token-to-caller mappings")
         if self.resolver_mode == "llm" and not all((self.llm_base_url, self.llm_api_key, self.llm_model)):
             raise ValueError("LLM mode requires LLM_BASE_URL, LLM_API_KEY and LLM_MODEL")
+        if self.resolver_mode == "llm":
+            self.llm_base_url = self.llm_base_url.strip().rstrip("/")
+            self.llm_model = self.llm_model.strip()
+            endpoint = urlsplit(self.llm_base_url)
+            azure_host = (endpoint.hostname or "").endswith((".services.ai.azure.com", ".openai.azure.com"))
+            if azure_host:
+                self.llm_provider = "azure_openai"
+                if (
+                    re.fullmatch(r"/api/projects/[^/]+", endpoint.path)
+                    and not endpoint.query
+                    and not endpoint.fragment
+                ):
+                    self.llm_base_url = f"{endpoint.scheme}://{endpoint.netloc}/openai/v1"
+                    logger.warning("Converted Azure Foundry project URL to resource-level /openai/v1")
+                elif not endpoint.path and not self.llm_api_version:
+                    self.llm_base_url += "/openai/v1"
+            if self.llm_model.casefold() in {"gpt-5", "gpt-5-mini", "gpt-5-nano"}:
+                self.llm_send_temperature = False
         if self.resolver_mode == "llm" and self.llm_provider == "azure_openai":
             endpoint = urlsplit(self.llm_base_url)
             if (
                 endpoint.scheme not in ("https", "http")
                 or not endpoint.netloc
+                or endpoint.username
+                or endpoint.password
                 or endpoint.query
                 or endpoint.fragment
             ):

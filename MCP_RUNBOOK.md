@@ -311,7 +311,7 @@ MCP_LLM_API_KEY=YOUR-PRIVATE-KEY
 MCP_LLM_API_VERSION=YOUR-APPROVED-API-VERSION
 ```
 
-The resolver builds /openai/deployments/{deployment}/chat/completions with an
+For a resource root with an explicit API version, the resolver builds /openai/deployments/{deployment}/chat/completions with an
 api-version query parameter and an api-key header. Do not paste a full completion
 URL into the base setting.
 
@@ -324,11 +324,18 @@ or other deployments that reject temperature=0, set MCP_LLM_SEND_TEMPERATURE=fal
 The default true preserves the MVP's temperature-zero request for compatible models.
 Omission is an explicit compatibility exception to that PRD setting; cache consistency
 does not imply deterministic new LLM calls. This flag is included in the cache key.
-Use the deployment's inference endpoint from Azure's code sample. A Foundry
-/api/projects/... URL is not accepted by this resolver; resource-level v1 endpoints
+Use the deployment's inference endpoint from Azure's code sample. Recognized Azure
+Foundry /api/projects/{project} URLs are now converted to resource-level /openai/v1
+with a startup warning; Azure hostnames also select azure_openai authentication
+even if an old setting still says openai_compatible. A recognized Azure resource
+root with no API version selects v1. Resource-level v1 endpoints
 use https://YOUR-RESOURCE.services.ai.azure.com/openai/v1 (or the provided
 openai.azure.com hostname). Confirm the endpoint, deployment and key belong together.
-Entra token acquisition and custom API-management headers are not implemented.
+The exact deployment names gpt-5, gpt-5-mini and gpt-5-nano automatically omit
+temperature to avoid a stale true setting breaking those models. Custom deployment
+names still need the explicit MCP_LLM_SEND_TEMPERATURE=false setting.
+Startup reports the effective provider, endpoint, deployment and temperature flag,
+never the key. Entra token acquisition and custom API-management headers are not implemented.
 Azure routing is tested with simulated responses, not a real Azure deployment.
 Reference: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs
 

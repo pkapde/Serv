@@ -5,6 +5,7 @@ Configure MCP_LLM_BASE_URL, MCP_LLM_API_KEY and MCP_LLM_MODEL, then run:
 """
 
 import json
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -18,6 +19,13 @@ def create_app(settings: Settings | None = None):
     settings = settings or IntegrationSettings(app_env="demo", resolver_mode="llm", execution_mode="demo")
     if settings.resolver_mode != "llm" or settings.execution_mode != "demo":
         raise ValueError("This entry point requires LLM resolution and local demo execution")
+    logging.getLogger(__name__).warning(
+        "LLM configuration: provider=%s base_url=%s deployment=%s send_temperature=%s",
+        settings.llm_provider,
+        settings.llm_base_url,
+        settings.llm_model,
+        settings.llm_send_temperature,
+    )
     app = FastAPI(title="Standalone MCP LLM test")
     questions = list(json.loads(Path("examples/questions.json").read_text(encoding="utf-8")))
     install_demo_ui(app, questions, resolver_mode="llm")

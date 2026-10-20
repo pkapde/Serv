@@ -51,7 +51,7 @@ async def test_azure_request_and_query_execution(service, v1):
     assert service.resolver.cache_key("Question", service.model.hash) != original
 
 
-def test_azure_root_requires_version_and_v1_does_not():
+def test_azure_root_chooses_v1_without_version_and_legacy_with_version():
     values = dict(
         _env_file=None,
         resolver_mode="llm",
@@ -60,8 +60,61 @@ def test_azure_root_requires_version_and_v1_does_not():
         llm_model="deployment",
         llm_api_key="test-key",
     )
-    with pytest.raises(ValidationError, match="require LLM_API_VERSION"):
-        Settings(**values)
+    assert Settings(**values).llm_base_url.endswith("/openai/v1")
     assert Settings(**values, llm_api_version="test-version").llm_provider == "azure_openai"
     values["llm_base_url"] += "/openai/v1"
     assert Settings(**values).llm_api_version == ""
+
+
+@pytest.mark.parametrize("provider", ["azure_openai", "openai_compatible"])
+async def test_pasted_foundry_project_url_is_normalized_and_executed(service, provider):
+    configured = Settings(
+        _env_file=None,
+        resolver_mode="llm",
+        llm_provider=provider,
+        llm_base_url="https://example-resource.services.ai.azure.com/api/projects/example-project/",
+        llm_model="gpt-5",
+        llm_api_key="test-key",
+        llm_send_temperature=True,
+    )
+    assert configured.llm_provider == "azure_openai"
+    assert configured.llm_base_url == "https://example-resource.services.ai.azure.com/openai/v1"
+    assert configured.llm_send_temperature is False
+    for name in (
+        "resolver_mode",
+        "llm_provider",
+        "llm_base_url",
+        "llm_model",
+        "llm_api_key",
+        "llm_send_temperature",
+    ):
+        setattr(service.settings, name, getattr(configured, name))
+
+    def azure(request):
+        assert request.url.path == "/openai/v1/chat/completions"
+        assert request.headers["api-key"] == "test-key"
+        assert "temperature" not in json.loads(request.content)
+        result = {
+            "outcome": "ambiguous",
+            "rationale": "No declared default",
+            "candidates": ["resolution_rate_1d", "resolution_rate_7d"],
+        }
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(result)}}]})
+
+    await service.resolver.client.aclose()
+    service.resolver.client = httpx.AsyncClient(transport=httpx.MockTransport(azure))
+    answer = await service.ask_question("What is the resolution rate?", "tester")
+    assert answer["status"] == "cannot_answer"
+    assert answer["candidates"] == ["resolution_rate_1d", "resolution_rate_7d"]
+
+
+def test_other_azure_paths_are_not_silently_rewritten():
+    with pytest.raises(ValidationError, match="resource root"):
+        Settings(
+            _env_file=None,
+            resolver_mode="llm",
+            llm_provider="azure_openai",
+            llm_base_url="https://resource.services.ai.azure.com/unsupported/path",
+            llm_model="deployment",
+            llm_api_key="test-key",
+        )
