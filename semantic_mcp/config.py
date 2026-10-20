@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_provider: Literal["openai_compatible", "azure_openai"] = "openai_compatible"
     llm_api_version: str = ""
+    llm_send_temperature: bool = True
     llm_api_key: str = ""
     llm_model: str = ""
     llm_timeout_seconds: int = Field(default=30, ge=1, le=120)

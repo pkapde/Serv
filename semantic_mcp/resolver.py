@@ -80,6 +80,7 @@ class Resolver:
             self.settings.llm_base_url,
             self.settings.llm_provider,
             self.settings.llm_api_version,
+            self.settings.llm_send_temperature,
             normalize_question(question),
         ]
         return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
@@ -99,7 +100,6 @@ class Resolver:
             return Resolution.model_validate(result)
         body = {
             "model": self.settings.llm_model,
-            "temperature": 0,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "system", "content": "Governed catalogue:\n" + self.catalogue},
@@ -110,6 +110,8 @@ class Resolver:
                 "json_schema": {"name": "query_resolution", "strict": True, "schema": strict_output_schema()},
             },
         }
+        if self.settings.llm_send_temperature:
+            body["temperature"] = 0
         url = self.settings.llm_base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": "Bearer " + self.settings.llm_api_key}
         params = None

@@ -15,6 +15,7 @@ async def test_azure_request_and_query_execution(service, v1):
     service.settings.llm_model = "test-deployment"
     service.settings.llm_api_key = "test-azure-key"
     service.settings.llm_api_version = "test-version"
+    service.settings.llm_send_temperature = not v1
     calls = []
 
     def provider(request):
@@ -27,6 +28,10 @@ async def test_azure_request_and_query_execution(service, v1):
         body = json.loads(request.content)
         assert body["model"] == "test-deployment"
         assert body["response_format"]["json_schema"]["strict"] is True
+        if v1:
+            assert "temperature" not in body
+        else:
+            assert body["temperature"] == 0
         resolution = {
             "outcome": "resolved",
             "rationale": "Count interactions",

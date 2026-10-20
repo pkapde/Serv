@@ -319,9 +319,16 @@ For the v1 API, use MCP_LLM_BASE_URL=https://YOUR-RESOURCE.openai.azure.com/open
 with MCP_LLM_PROVIDER=azure_openai and leave MCP_LLM_API_VERSION empty. The
 resolver calls /openai/v1/chat/completions with api-key authentication.
 
-Both modes require a deployment supporting strict structured outputs and the
-current temperature-zero request. Unsupported model parameters are not silently
-removed. Entra token acquisition and custom API-management headers are not implemented.
+Both modes require a deployment supporting strict structured outputs. For gpt-5
+or other deployments that reject temperature=0, set MCP_LLM_SEND_TEMPERATURE=false.
+The default true preserves the MVP's temperature-zero request for compatible models.
+Omission is an explicit compatibility exception to that PRD setting; cache consistency
+does not imply deterministic new LLM calls. This flag is included in the cache key.
+Use the deployment's inference endpoint from Azure's code sample. A Foundry
+/api/projects/... URL is not accepted by this resolver; resource-level v1 endpoints
+use https://YOUR-RESOURCE.services.ai.azure.com/openai/v1 (or the provided
+openai.azure.com hostname). Confirm the endpoint, deployment and key belong together.
+Entra token acquisition and custom API-management headers are not implemented.
 Azure routing is tested with simulated responses, not a real Azure deployment.
 Reference: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs
 
